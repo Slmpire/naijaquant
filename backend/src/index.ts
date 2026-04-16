@@ -3,6 +3,7 @@ import cors from 'cors'
 import { config } from './config'
 import { initDataPipeline } from './scheduler'
 import { store } from './store'
+import { getAggregatedSignal } from './signals/aggregator'
 
 const app = express()
 app.use(cors())
@@ -36,6 +37,15 @@ app.get('/snapshot', (_, res) => {
     lastUpdated: store.lastUpdated,
   })
 })
+app.get('/signals', async (_, res) => {
+  try {
+    const signal = await getAggregatedSignal()
+    res.json(signal)
+  } catch (err: any) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
 
 // Start pipeline then server
 async function bootstrap() {

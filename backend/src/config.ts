@@ -7,8 +7,8 @@ export const config = {
     apiKey: process.env.BAYSE_API_KEY || '',
     secretKey: process.env.BAYSE_SECRET_KEY || '',
   },
-  anthropic: {
-    apiKey: process.env.ANTHROPIC_API_KEY || '',
+  gemini: {
+    apiKey: process.env.GEMINI_API_KEY || '',
   },
   newsApiKey: process.env.NEWS_API_KEY || '',
 }
