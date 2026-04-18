@@ -3,6 +3,7 @@ import { getBTCPriceHistory, getBTCCurrentPrice } from './services/coingecko'
 import { getNGNRate } from './services/exchangerate'
 import { getNigerianFinanceNews } from './services/news'
 import { store } from './store'
+import { runTradeCycle } from './trading/trader'
 
 async function refreshBTC() {
   try {
@@ -63,10 +64,15 @@ export async function initDataPipeline() {
 
   // News — every 30 minutes
   cron.schedule('*/30 * * * *', refreshNews)
+  cron.schedule('*/15 * * * *', async () => {
+  console.log('\n[SCHEDULER] Running auto trade cycle...')
+  await runTradeCycle()
+})
 
   console.log('[PIPELINE] Schedules active:')
   console.log('  • BTC price    → every 5 minutes')
   console.log('  • BTC history  → every 1 hour')
   console.log('  • NGN/USD rate → every 10 minutes')
   console.log('  • News         → every 30 minutes\n')
+  console.log('  • Trade cycle  → every 15 minutes')
 }

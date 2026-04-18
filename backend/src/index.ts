@@ -4,6 +4,7 @@ import { config } from './config'
 import { initDataPipeline } from './scheduler'
 import { store } from './store'
 import { getAggregatedSignal } from './signals/aggregator'
+import { runTradeCycle, tradeLogs, getPortfolioSummary } from './trading/trader'
 
 const app = express()
 app.use(cors())
@@ -41,6 +42,34 @@ app.get('/signals', async (_, res) => {
   try {
     const signal = await getAggregatedSignal()
     res.json(signal)
+  } catch (err: any) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Manually trigger one trade cycle
+app.post('/trade', async (_, res) => {
+  try {
+    const log = await runTradeCycle()
+    res.json(log)
+  } catch (err: any) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Get all trade logs
+app.get('/trades', (_, res) => {
+  res.json({
+    total: tradeLogs.length,
+    trades: tradeLogs.slice(0, 20), // last 20 trades
+  })
+})
+
+// Get portfolio summary
+app.get('/portfolio', async (_, res) => {
+  try {
+    const summary = await getPortfolioSummary()
+    res.json(summary)
   } catch (err: any) {
     res.status(500).json({ error: err.message })
   }
