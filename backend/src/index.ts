@@ -5,6 +5,7 @@ import { initDataPipeline } from './scheduler'
 import { store } from './store'
 import { getAggregatedSignal } from './signals/aggregator'
 import { runTradeCycle, tradeLogs, getPortfolioSummary } from './trading/trader'
+import { generateTradeExplanation } from './services/explainer'
 
 const app = express()
 app.use(cors())
@@ -70,6 +71,22 @@ app.get('/portfolio', async (_, res) => {
   try {
     const summary = await getPortfolioSummary()
     res.json(summary)
+  } catch (err: any) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Regenerate explanation for a specific trade
+app.post('/explain/:tradeId', async (req, res) => {
+  try {
+    const trade = tradeLogs.find(t => t.id === req.params.tradeId)
+    if (!trade) {
+      return res.status(404).json({ error: 'Trade not found' })
+    }
+    const signal = await getAggregatedSignal()
+    const explanation = await generateTradeExplanation(signal, trade)
+    trade.reason = explanation
+    res.json({ explanation })
   } catch (err: any) {
     res.status(500).json({ error: err.message })
   }

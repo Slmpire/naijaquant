@@ -8,6 +8,7 @@ import {
   BayseEvent,
 } from './bayse'
 import { getAggregatedSignal, AggregatedSignal } from '../signals/aggregator'
+import { generateTradeExplanation } from '../services/explainer'
 
 // ── Trade Log ─────────────────────────────────────────────
 
@@ -32,10 +33,14 @@ export const tradeLogs: TradeLog[] = []
 
 // ── Config ────────────────────────────────────────────────
 
-const TRADE_AMOUNT = 100        // NGN shares per trade
-const BUY_UP_THRESHOLD = 65     // confidence score to BUY UP
-const BUY_DOWN_THRESHOLD = 35   // confidence score to BUY DOWN
-const MIN_SECONDS_TO_CLOSE = 60 // don't trade if market closes in less than 60s
+const TRADE_AMOUNT = 100
+const BUY_UP_THRESHOLD = 65
+const BUY_DOWN_THRESHOLD = 35
+const MIN_SECONDS_TO_CLOSE = 60
+
+// ── Last Signal Store ─────────────────────────────────────
+
+let lastSignal: AggregatedSignal | null = null
 
 // ── Helpers ───────────────────────────────────────────────
 
@@ -51,12 +56,12 @@ function secondsUntilClose(closingDate: string): number {
 
 export async function runTradeCycle(): Promise<TradeLog> {
   const signal = await getAggregatedSignal()
+  lastSignal = signal
   const logId = generateId()
 
   console.log(`\n[TRADER] ── Cycle ${logId} ──`)
   console.log(`[TRADER] Confidence: ${signal.confidenceScore} | Recommendation: ${signal.recommendation}`)
 
-  // Build base log entry
   const baseLog = {
     id: logId,
     timestamp: Date.now(),
@@ -74,19 +79,23 @@ export async function runTradeCycle(): Promise<TradeLog> {
     status: 'HELD' as const,
   }
 
-  // If HOLD — log and return
+  // ── HOLD ────────────────────────────────────────────────
   if (signal.recommendation === 'HOLD') {
     const log: TradeLog = {
       ...baseLog,
-      reason: `Confidence score ${signal.confidenceScore} is between thresholds (${BUY_DOWN_THRESHOLD}–${BUY_UP_THRESHOLD}). Holding.`,
+      reason: `Confidence score ${signal.confidenceScore} is between thresholds. Holding.`,
       status: 'HELD',
     }
     tradeLogs.unshift(log)
+    generateTradeExplanation(signal, log).then(explanation => {
+      log.reason = explanation
+      console.log(`[EXPLAINER] ${explanation}`)
+    })
     console.log(`[TRADER] HOLD — score not strong enough`)
     return log
   }
 
-  // Find active market
+  // ── FIND MARKET ─────────────────────────────────────────
   let events: BayseEvent[] = []
   try {
     events = await getActiveEvents()
@@ -112,7 +121,7 @@ export async function runTradeCycle(): Promise<TradeLog> {
     return log
   }
 
-  // Pick the soonest closing market
+  // Pick the soonest closing market that isn't about to close
   const event = events
     .filter(e => secondsUntilClose(e.closingDate) > MIN_SECONDS_TO_CLOSE)
     .sort((a, b) => new Date(a.closingDate).getTime() - new Date(b.closingDate).getTime())[0]
@@ -148,7 +157,7 @@ export async function runTradeCycle(): Promise<TradeLog> {
   console.log(`[TRADER] Market: "${event.title}"`)
   console.log(`[TRADER] Trading: ${outcome.label} @ ₦${outcome.price} | Amount: ${TRADE_AMOUNT} shares`)
 
-  // Mint shares so we have inventory
+  // Mint shares
   try {
     await mintShares(market.id, TRADE_AMOUNT)
     console.log(`[TRADER] Minted ${TRADE_AMOUNT} share pairs`)
@@ -156,7 +165,7 @@ export async function runTradeCycle(): Promise<TradeLog> {
     console.warn(`[TRADER] Mint warning: ${err.message}`)
   }
 
-  // Place the order
+  // ── PLACE ORDER ─────────────────────────────────────────
   try {
     const order = await placeOrder(
       event.id,
@@ -173,12 +182,18 @@ export async function runTradeCycle(): Promise<TradeLog> {
       outcomeLabel: outcome.label,
       price: outcome.price,
       orderId: order.id,
-      reason: `Score ${signal.confidenceScore}/100. Quant: ${signal.quant.reason} Sentiment: ${signal.sentiment.reason} Mispricing: ${signal.mispricing.reason}`,
+      reason: `Score ${signal.confidenceScore}/100 — generating explanation...`,
       status: 'EXECUTED',
     }
 
     tradeLogs.unshift(log)
     console.log(`[TRADER] ✓ Order placed — ID: ${order.id}`)
+
+    generateTradeExplanation(signal, log).then(explanation => {
+      log.reason = explanation
+      console.log(`[EXPLAINER] ${explanation}`)
+    })
+
     return log
 
   } catch (err: any) {
@@ -190,8 +205,16 @@ export async function runTradeCycle(): Promise<TradeLog> {
       reason: `Order failed: ${err.message}`,
       status: 'FAILED',
     }
+
     tradeLogs.unshift(log)
     console.error(`[TRADER] Order failed — ${err.message}`)
+
+    if (lastSignal) {
+      generateTradeExplanation(lastSignal, log).then(explanation => {
+        log.reason = explanation + ` (Order error: ${err.message})`
+      })
+    }
+
     return log
   }
 }
