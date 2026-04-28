@@ -12,21 +12,38 @@ interface SignalCardsProps {
   recommendation: string
 }
 
+function getColor(score: number) {
+  return score >= 65 ? '#22c55e' : score <= 35 ? '#ef4444' : '#f59e0b'
+}
+
 function ScoreBar({ score }: { score: number }) {
-  const color = score >= 65 ? '#00ff88' : score <= 35 ? '#ff4444' : '#ffaa00'
+  const color = getColor(score)
+
   return (
-    <div style={{ marginTop: 8 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-        <span style={{ fontSize: 10, color: '#666' }}>Score</span>
-        <span style={{ fontSize: 12, fontWeight: 700, color }}>{score}/100</span>
+    <div style={{ marginTop: 10 }}>
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        marginBottom: 4,
+        fontSize: 11,
+      }}>
+        <span style={{ color: '#64748b' }}>Score</span>
+        <span style={{ fontWeight: 600, color }}>{score}/100</span>
       </div>
-      <div style={{ background: '#1a1a1a', borderRadius: 4, height: 5 }}>
+
+      <div style={{
+        background: 'rgba(148,163,184,0.15)',
+        borderRadius: 999,
+        height: 6,
+        overflow: 'hidden',
+      }}>
         <div style={{
           width: `${score}%`,
           height: '100%',
           background: color,
-          borderRadius: 4,
-          transition: 'width 0.5s ease',
+          borderRadius: 999,
+          transition: 'width 0.6s ease',
+          boxShadow: `0 0 8px ${color}80`,
         }} />
       </div>
     </div>
@@ -34,88 +51,153 @@ function ScoreBar({ score }: { score: number }) {
 }
 
 function Card({ title, icon, signal }: { title: string; icon: string; signal: Signal }) {
-  const directionColor = (d: string) =>
-    ['BULLISH', 'POSITIVE', 'BUY_UP'].includes(d) ? '#00ff88'
-    : ['BEARISH', 'NEGATIVE', 'BUY_DOWN'].includes(d) ? '#ff4444'
-    : '#ffaa00'
+  const color = getColor(signal.score)
+
+  const getLabel = (d: string) => {
+    if (['BULLISH', 'POSITIVE', 'BUY_UP'].includes(d)) return 'Bullish'
+    if (['BEARISH', 'NEGATIVE', 'BUY_DOWN'].includes(d)) return 'Bearish'
+    return 'Neutral'
+  }
 
   return (
     <div style={{
-      background: '#111',
-      border: '1px solid #222',
-      borderRadius: 10,
-      padding: 14,
       flex: 1,
       minWidth: 0,
+      padding: 16,
+      borderRadius: 16,
+      background: 'rgba(15,23,42,0.6)',
+      border: '1px solid rgba(148,163,184,0.1)',
+      backdropFilter: 'blur(8px)',
+      transition: 'all 0.2s ease',
     }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, flexWrap: 'wrap', gap: 4 }}>
-        <span style={{ fontSize: 12, color: '#888' }}>{icon} {title}</span>
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 8,
+      }}>
         <span style={{
-          fontSize: 10,
-          padding: '2px 6px',
-          borderRadius: 20,
-          background: `${directionColor(signal.direction)}20`,
-          color: directionColor(signal.direction),
-          border: `1px solid ${directionColor(signal.direction)}40`,
-          whiteSpace: 'nowrap',
+          fontSize: 12,
+          color: '#94a3b8',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
         }}>
-          {signal.direction}
+          {icon} {title}
+        </span>
+
+        <span style={{
+          fontSize: 11,
+          padding: '4px 10px',
+          borderRadius: 999,
+          background: `${color}20`,
+          color,
+          border: `1px solid ${color}30`,
+          fontWeight: 500,
+        }}>
+          {getLabel(signal.direction)}
         </span>
       </div>
+
       <ScoreBar score={signal.score} />
-      <p style={{ fontSize: 11, color: '#555', marginTop: 8, lineHeight: 1.5, margin: '8px 0 0' }}>
+
+      <p style={{
+        fontSize: 12,
+        color: '#94a3b8',
+        marginTop: 10,
+        lineHeight: 1.5,
+      }}>
         {signal.reason}
       </p>
     </div>
   )
 }
 
-export default function SignalCards({ quant, sentiment, mispricing, confidenceScore, recommendation }: SignalCardsProps) {
-  const recColor = recommendation === 'BUY_UP' ? '#00ff88'
-    : recommendation === 'BUY_DOWN' ? '#ff4444' : '#ffaa00'
+export default function SignalCards({
+  quant,
+  sentiment,
+  mispricing,
+  confidenceScore,
+  recommendation
+}: SignalCardsProps) {
+
+  const color =
+    recommendation === 'BUY_UP' ? '#22c55e'
+    : recommendation === 'BUY_DOWN' ? '#ef4444'
+    : '#f59e0b'
+
+  const getLabel = () => {
+    if (recommendation === 'BUY_UP') return 'Strong Buy'
+    if (recommendation === 'BUY_DOWN') return 'Sell Signal'
+    return 'Hold / Neutral'
+  }
 
   return (
     <div>
       {/* Confidence Banner */}
       <div style={{
-        background: '#111',
-        border: `1px solid ${recColor}40`,
-        borderRadius: 10,
-        padding: '14px 18px',
-        marginBottom: 12,
+        padding: '18px 20px',
+        borderRadius: 18,
+        marginBottom: 16,
         display: 'flex',
-        alignItems: 'center',
         justifyContent: 'space-between',
         flexWrap: 'wrap',
-        gap: 12,
+        gap: 16,
+        background: 'linear-gradient(135deg, rgba(15,23,42,0.9), rgba(2,6,23,0.9))',
+        border: `1px solid ${color}30`,
+        backdropFilter: 'blur(10px)',
       }}>
+        {/* Left */}
         <div>
-          <div style={{ fontSize: 11, color: '#666', marginBottom: 2 }}>Confidence Score</div>
-          <div style={{ fontSize: 32, fontWeight: 800, color: recColor, lineHeight: 1 }}>
+          <div style={{
+            fontSize: 12,
+            color: '#64748b',
+            marginBottom: 4,
+          }}>
+            Confidence Score
+          </div>
+
+          <div style={{
+            fontSize: 34,
+            fontWeight: 800,
+            color,
+            display: 'flex',
+            alignItems: 'baseline',
+            gap: 4,
+          }}>
             {confidenceScore}
-            <span style={{ fontSize: 14, color: '#444' }}>/100</span>
+            <span style={{ fontSize: 14, color: '#475569' }}>/100</span>
           </div>
         </div>
+
+        {/* Right */}
         <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: 11, color: '#666', marginBottom: 4 }}>Recommendation</div>
           <div style={{
-            fontSize: 16,
-            fontWeight: 700,
-            color: recColor,
-            background: `${recColor}15`,
-            padding: '6px 14px',
-            borderRadius: 8,
-            border: `1px solid ${recColor}30`,
+            fontSize: 12,
+            color: '#64748b',
+            marginBottom: 6,
           }}>
-            {recommendation}
+            Recommendation
+          </div>
+
+          <div style={{
+            fontSize: 15,
+            fontWeight: 600,
+            color,
+            background: `${color}15`,
+            padding: '8px 16px',
+            borderRadius: 10,
+            border: `1px solid ${color}30`,
+          }}>
+            {getLabel()}
           </div>
         </div>
       </div>
 
-      {/* Signal Cards — stack on mobile */}
+      {/* Cards */}
       <div style={{
         display: 'flex',
-        gap: 10,
+        gap: 14,
         flexDirection: window.innerWidth < 600 ? 'column' : 'row',
       }}>
         <Card title="Quant Signal" icon="📊" signal={quant} />

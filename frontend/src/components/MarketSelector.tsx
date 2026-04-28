@@ -28,24 +28,17 @@ export default function MarketSelector({
     const mins = Math.floor(diff / 60000)
     const hrs = Math.floor(mins / 60)
     if (hrs > 0) return `${hrs}h ${mins % 60}m`
-    return `${mins}m left`
+    return `${mins}m`
   }
 
-  // 🔍 Filter events based on search
   const filteredEvents = useMemo(() => {
     if (!search) return events
-
     const term = search.toLowerCase()
 
     return events.filter(event => {
-      // Match event title
       if (event.title.toLowerCase().includes(term)) return true
-
-      // Match outcomes inside markets
       return event.markets.some(m =>
-        m.outcomes.some(o =>
-          o.label.toLowerCase().includes(term)
-        )
+        m.outcomes.some(o => o.label.toLowerCase().includes(term))
       )
     })
   }, [events, search])
@@ -53,28 +46,31 @@ export default function MarketSelector({
   return (
     <div
       style={{
-        background: '#111',
-        border: '1px solid #222',
-        borderRadius: 10,
+        borderRadius: 16,
         padding: 16,
+        background: 'rgba(15,23,42,0.4)',
+        border: '1px solid rgba(148,163,184,0.1)',
+        backdropFilter: 'blur(8px)',
       }}
     >
-      {/* Header */}
-      <div
-        style={{
-          fontSize: 13,
-          fontWeight: 600,
-          color: '#fff',
-          marginBottom: 12,
-        }}
-      >
-        🏛️ Select a Market to Predict
-        <span style={{ fontSize: 11, color: '#555', marginLeft: 8 }}>
-          {filteredEvents.length} active
-        </span>
+      {/* HEADER */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 12,
+        flexWrap: 'wrap',
+        gap: 8,
+      }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: '#e2e8f0' }}>
+          🏛️ Markets
+          <span style={{ fontSize: 11, color: '#64748b', marginLeft: 8 }}>
+            {filteredEvents.length} active
+          </span>
+        </div>
       </div>
 
-      {/* 🔍 Search Input */}
+      {/* SEARCH */}
       <input
         type="text"
         placeholder="Search markets..."
@@ -82,28 +78,26 @@ export default function MarketSelector({
         onChange={(e) => setSearch(e.target.value)}
         style={{
           width: '100%',
+          padding: '10px 12px',
           boxSizing: 'border-box',
-          marginBottom: 12,
-          padding: '10px',
-          borderRadius: 8,
-          border: '1px solid #222',
-          background: '#0a0a0a',
-          color: '#fff',
+          borderRadius: 10,
+          border: '1px solid rgba(148,163,184,0.15)',
+          background: 'rgba(2,6,23,0.6)',
+          color: '#e2e8f0',
           fontSize: 13,
           outline: 'none',
+          marginBottom: 12,
         }}
       />
 
-      {/* Empty state */}
+      {/* EMPTY */}
       {filteredEvents.length === 0 ? (
-        <div
-          style={{
-            color: '#444',
-            fontSize: 12,
-            textAlign: 'center',
-            padding: '20px 0',
-          }}
-        >
+        <div style={{
+          textAlign: 'center',
+          fontSize: 12,
+          color: '#64748b',
+          padding: '30px 0',
+        }}>
           No markets found
         </div>
       ) : (
@@ -111,7 +105,7 @@ export default function MarketSelector({
           style={{
             display: 'grid',
             gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)',
-            gap: 8,
+            gap: 10,
           }}
         >
           {filteredEvents.map(event => {
@@ -119,19 +113,14 @@ export default function MarketSelector({
             if (!market) return null
 
             const upOutcome =
-              market.outcomes.find(o =>
-                ['Up', 'YES', 'Yes'].includes(o.label)
-              ) ?? market.outcomes[0]
+              market.outcomes.find(o => ['Up', 'YES', 'Yes'].includes(o.label)) ??
+              market.outcomes[0]
 
             const downOutcome =
-              market.outcomes.find(o =>
-                ['Down', 'NO', 'No'].includes(o.label)
-              ) ?? market.outcomes[1]
+              market.outcomes.find(o => ['Down', 'NO', 'No'].includes(o.label)) ??
+              market.outcomes[1]
 
-            const upProb = upOutcome
-              ? Math.round(upOutcome.price * 100)
-              : 50
-
+            const upProb = upOutcome ? Math.round(upOutcome.price * 100) : 50
             const isSelected = selectedEventId === event.id
 
             return (
@@ -141,103 +130,91 @@ export default function MarketSelector({
                   onSelect(event.id, market.id, event.title)
                 }
                 style={{
-                  background: isSelected ? '#00ff8810' : '#0a0a0a',
-                  border: `1px solid ${
-                    isSelected ? '#00ff8850' : '#1a1a1a'
-                  }`,
-                  borderRadius: 8,
+                  borderRadius: 14,
                   padding: 12,
                   cursor: 'pointer',
-                  transition: 'all 0.2s',
+                  background: isSelected
+                    ? 'rgba(34,197,94,0.08)'
+                    : 'rgba(2,6,23,0.5)',
+                  border: isSelected
+                    ? '1px solid rgba(34,197,94,0.35)'
+                    : '1px solid rgba(148,163,184,0.08)',
+                  transition: 'all 0.2s ease',
                 }}
               >
-                {/* Title row */}
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'flex-start',
-                    gap: 8,
-                    marginBottom: 8,
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: 12,
-                      color: isSelected ? '#fff' : '#aaa',
-                      flex: 1,
-                      lineHeight: 1.4,
-                    }}
-                  >
+                {/* TOP ROW */}
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  gap: 10,
+                  marginBottom: 8,
+                }}>
+                  <div style={{
+                    fontSize: 12,
+                    color: isSelected ? '#e2e8f0' : '#94a3b8',
+                    lineHeight: 1.4,
+                    flex: 1,
+                  }}>
                     {event.title}
-                  </span>
+                  </div>
 
-                  <div
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'flex-end',
-                      gap: 4,
-                      flexShrink: 0,
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: 10,
-                        color: '#555',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'flex-end',
+                    gap: 4,
+                  }}>
+                    <span style={{
+                      fontSize: 10,
+                      color: '#64748b',
+                      whiteSpace: 'nowrap',
+                    }}>
                       ⏱ {timeLeft(event.closingDate)}
                     </span>
 
                     {isSelected && (
-                      <span
-                        style={{
-                          fontSize: 10,
-                          color: '#00ff88',
-                          background: '#00ff8820',
-                          padding: '1px 6px',
-                          borderRadius: 10,
-                          border: '1px solid #00ff8840',
-                        }}
-                      >
-                        ● Selected
+                      <span style={{
+                        fontSize: 10,
+                        color: '#22c55e',
+                        background: 'rgba(34,197,94,0.1)',
+                        padding: '2px 6px',
+                        borderRadius: 999,
+                        border: '1px solid rgba(34,197,94,0.25)',
+                      }}>
+                        Selected
                       </span>
                     )}
                   </div>
                 </div>
 
-                {/* Probability bar */}
-                <div
-                  style={{
-                    display: 'flex',
-                    borderRadius: 3,
-                    overflow: 'hidden',
-                    height: 5,
-                    marginBottom: 5,
-                  }}
-                >
-                  <div
-                    style={{
-                      width: `${upProb}%`,
-                      background: '#00ff88',
-                    }}
-                  />
-                  <div style={{ flex: 1, background: '#ff4444' }} />
+                {/* BAR */}
+                <div style={{
+                  display: 'flex',
+                  height: 4,
+                  borderRadius: 999,
+                  overflow: 'hidden',
+                  marginBottom: 6,
+                }}>
+                  <div style={{
+                    width: `${upProb}%`,
+                    background: '#22c55e',
+                  }} />
+                  <div style={{
+                    flex: 1,
+                    background: '#ef4444',
+                  }} />
                 </div>
 
-                {/* Labels */}
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                  }}
-                >
-                  <span style={{ fontSize: 10, color: '#00ff88' }}>
+                {/* LABELS */}
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  fontSize: 10,
+                }}>
+                  <span style={{ color: '#22c55e' }}>
                     {upOutcome?.label ?? 'Up'} {upProb}%
                   </span>
-                  <span style={{ fontSize: 10, color: '#ff4444' }}>
+                  <span style={{ color: '#ef4444' }}>
                     {downOutcome?.label ?? 'Down'} {100 - upProb}%
                   </span>
                 </div>
