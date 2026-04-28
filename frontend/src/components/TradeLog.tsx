@@ -23,8 +23,6 @@ export default function TradeLog({ trades, onTriggerTrade, isTrading }: TradeLog
   const [isOpen, setIsOpen] = useState(true)
   const [openTradeId, setOpenTradeId] = useState<string | null>(null)
 
-  const statusColor = (s: string) =>
-    s === 'EXECUTED' ? '#22c55e' : s === 'HELD' ? '#f59e0b' : '#ef4444'
 
   const actionColor = (a: string) =>
     a === 'BUY_UP' ? '#22c55e' : a === 'BUY_DOWN' ? '#ef4444' : '#f59e0b'
