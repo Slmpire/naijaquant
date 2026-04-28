@@ -176,62 +176,6 @@ The React dashboard updates every 15 seconds and shows:
 
 ---
 
-## System Architecture
-
-┌─────────────────────────────────────────────┐
-│            EXTERNAL DATA SOURCES            │
-│  Binance API │ ExchangeRate API │ GNews API  │
-└──────────────────────┬──────────────────────┘
-│ refresh every 5–30 min
-┌──────────────────────▼──────────────────────┐
-│              IN-MEMORY DATA STORE           │
-│   BTC history │ Current price │ NGN rate    │
-│   News headlines │ Last updated timestamps  │
-└──────────────────────┬──────────────────────┘
-│
-┌──────────────────────▼──────────────────────┐
-│               SIGNAL ENGINE                 │
-│                                             │
-│  Quant Module     Sentiment Module          │
-│  ─ MA Crossover   ─ Naira direction         │
-│  ─ RSI            ─ News headlines          │
-│  ─ Momentum       ─ Gemini AI scoring       │
-│                                             │
-│  Mispricing Module                          │
-│  ─ Bayse implied probability                │
-│  ─ Model probability                        │
-│  ─ Gap detection                            │
-└──────────────────────┬──────────────────────┘
-│
-┌──────────────────────▼──────────────────────┐
-│           CONFIDENCE AGGREGATOR             │
-│   Score = Quant×40% + Sentiment×30%        │
-│                     + Mispricing×30%        │
-│   ≥65 → BUY UP  │  ≤35 → BUY DOWN          │
-└──────────────────────┬──────────────────────┘
-│
-┌──────────────────────▼──────────────────────┐
-│              BAYSE TRADER                   │
-│  ─ Fetches active markets                   │
-│  ─ Selects optimal market and outcome       │
-│  ─ Mints shares                             │
-│  ─ Places limit order via Bayse API         │
-└──────────────────────┬──────────────────────┘
-│
-┌──────────────────────▼──────────────────────┐
-│           GEMINI EXPLAINER                  │
-│  Generates plain English explanation        │
-│  for every trade decision                   │
-└──────────────────────┬──────────────────────┘
-│
-┌──────────────────────▼──────────────────────┐
-│            REACT DASHBOARD                  │
-│  Polls backend every 15 seconds             │
-│  Shows signals, meter, trades, markets      │
-└─────────────────────────────────────────────┘
-
----
-
 ## Run Locally
 
 **Requirements:** Node.js 18+, npm
@@ -288,25 +232,9 @@ npm run build
 firebase deploy --only hosting
 ```
 
----
-
-## Built in 8 Days
-
-| Day | What was built |
-|---|---|
-| 1 | Project scaffold, API connections verified |
-| 2 | Automated data pipeline with scheduled refresh |
-| 3 | Full signal engine — quant, sentiment, mispricing |
-| 4 | Bayse API client and auto trader |
-| 5 | Gemini AI trade explanation engine |
-| 6 | Live React dashboard with market selector |
-| 7 | Testing, bug fixes, mobile responsive design |
-| 8 | Deployment, confidence meter, final polish |
-
----
 
 ## Team
 
-built for the Bayse Markets Hackathon.
+Solo-built for the Bayse Markets Hackathon.
 
 *"The first quant bot that knows the naira."* 🇳🇬
