@@ -69,6 +69,17 @@ export async function initDataPipeline() {
   await runTradeCycle()
 })
 
+// Ping self every 10 minutes to prevent cold start
+const BACKEND_URL = process.env.BACKEND_URL || ''
+if (BACKEND_URL) {
+  cron.schedule('*/10 * * * *', async () => {
+    try {
+      await fetch(`${BACKEND_URL}/health`)
+      console.log('[KEEPALIVE] Backend pinged')
+    } catch {}
+  })
+}
+
   console.log('[PIPELINE] Schedules active:')
   console.log('  • BTC price    → every 5 minutes')
   console.log('  • BTC history  → every 1 hour')

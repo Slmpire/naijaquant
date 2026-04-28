@@ -57,16 +57,28 @@ function calculateModelProbability(): number {
   return Math.min(0.85, Math.max(0.15, baseRate + momentumBoost))
 }
 
-export async function getMispricingSignal(): Promise<MispricingSignal> {
+export async function getMispricingSignal(
+  targetEventId?: string,
+  targetMarketId?: string
+): Promise<MispricingSignal> {
   try {
-    // Fetch active BTC 15-min markets from Bayse
-    const data = await bayseRequest(
-      'GET',
-      '/v1/pm/events?status=open&seriesSlug=crypto-btc-15min&currency=NGN&limit=5'
-    )
+    let event: any = null
 
-    const events = data.events ?? []
-    if (events.length === 0) {
+    if (targetEventId) {
+      // Fetch the specific selected market
+      const data = await bayseRequest('GET', `/v1/pm/events/${targetEventId}`)
+      event = data.event ?? data
+    } else {
+      // Default — fetch first active BTC 15-min market
+      const data = await bayseRequest(
+        'GET',
+        '/v1/pm/events?status=open&seriesSlug=crypto-btc-15min&currency=NGN&limit=5'
+      )
+      const events = data.events ?? []
+      event = events[0]
+    }
+
+    if (!event) {
       return {
         score: 50,
         direction: 'NEUTRAL',
@@ -77,17 +89,17 @@ export async function getMispricingSignal(): Promise<MispricingSignal> {
       }
     }
 
-    // Get the UP outcome price from the first active market
-    const market = events[0].markets?.[0]
-    if (!market) throw new Error('No market in event')
+    const market = targetMarketId
+      ? event.markets?.find((m: any) => m.id === targetMarketId) ?? event.markets?.[0]
+      : event.markets?.[0]
+
+    if (!market) throw new Error('No market found in event')
 
     const bayseUpPrice = market.outcome1Price ?? 0.5
-    const bayseImpliedProb = bayseUpPrice  // Price IS the probability on Bayse (0–1)
+    const bayseImpliedProb = bayseUpPrice
     const modelProb = calculateModelProbability()
     const gap = modelProb - bayseImpliedProb
 
-    // Gap > 0.08 means crowd is underpricing UP → we should BUY UP
-    // Gap < -0.08 means crowd is overpricing UP → we should BUY DOWN
     let direction: 'BUY_UP' | 'BUY_DOWN' | 'NEUTRAL' = 'NEUTRAL'
     let score = 50
 
@@ -97,11 +109,9 @@ export async function getMispricingSignal(): Promise<MispricingSignal> {
     } else if (gap < -0.08) {
       direction = 'BUY_DOWN'
       score = Math.max(0, Math.round(50 + gap * 400))
-    } else {
-      score = 50
     }
 
-    const reason = `Bayse crowd prices UP at ${(bayseImpliedProb * 100).toFixed(1)}%. Our model says ${(modelProb * 100).toFixed(1)}%. Gap: ${gap > 0 ? '+' : ''}${(gap * 100).toFixed(1)}% — ${direction === 'NEUTRAL' ? 'not significant enough to trade' : `crowd is mispriced, ${direction}`}.`
+    const reason = `Bayse crowd prices UP at ${(bayseImpliedProb * 100).toFixed(1)}%. Our model says ${(modelProb * 100).toFixed(1)}%. Gap: ${gap > 0 ? '+' : ''}${(gap * 100).toFixed(1)}% — ${direction === 'NEUTRAL' ? 'no significant mispricing' : `crowd mispriced, ${direction}`}.`
 
     return { score, direction, bayseImpliedProb, modelProb, gap, reason }
 

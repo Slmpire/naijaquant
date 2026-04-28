@@ -68,13 +68,13 @@ export interface BayseEvent {
   markets: BayseMarket[]
 }
 
-export async function getActiveEvents(seriesSlug = 'crypto-btc-15min'): Promise<BayseEvent[]> {
+export async function getActiveEvents(seriesSlug?: string): Promise<BayseEvent[]> {
   const params = new URLSearchParams({
     status: 'open',
-    seriesSlug,
     currency: 'NGN',
-    limit: '5',
+    limit: '20',
   })
+  if (seriesSlug) params.set('seriesSlug', seriesSlug)
   const data = await request('GET', `/v1/pm/events?${params}`)
   return (data.events ?? []).map((e: any) => ({
     id: e.id,

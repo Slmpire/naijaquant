@@ -6,9 +6,17 @@ import { store } from './store'
 import { getAggregatedSignal } from './signals/aggregator'
 import { runTradeCycle, tradeLogs, getPortfolioSummary } from './trading/trader'
 import { generateTradeExplanation } from './services/explainer'
+import { getActiveEvents } from './trading/bayse'
 
 const app = express()
-app.use(cors())
+app.use(cors({
+  origin: [
+    'http://localhost:5173',
+    'https://naijaquant-f9d6d.web.app',     // your Firebase URL
+    'https://naijaquant-f9d6d.firebaseapp.com', // Firebase alternate URL
+  ],
+  methods: ['GET', 'POST', 'DELETE'],
+}))
 app.use(express.json())
 
 // Health check
@@ -35,13 +43,21 @@ app.get('/snapshot', (_, res) => {
     ready: isReady,
     btcPrice: store.btcCurrentPrice,
     usdToNgn: store.ngnRate?.usdToNgn ?? null,
+    btcHistory: store.btcHistory,
     newsHeadlines: store.news.map(n => n.title),
     lastUpdated: store.lastUpdated,
   })
 })
-app.get('/signals', async (_, res) => {
+
+// Get aggregated trading signal, optionally filtered by Bayse event/market
+app.get('/signals', async (req, res) => {
   try {
-    const signal = await getAggregatedSignal()
+    const { eventId, marketId, eventTitle } = req.query as {
+      eventId?: string
+      marketId?: string
+      eventTitle?: string
+    }
+    const signal = await getAggregatedSignal(eventId, marketId, eventTitle)
     res.json(signal)
   } catch (err: any) {
     res.status(500).json({ error: err.message })
@@ -71,6 +87,16 @@ app.get('/portfolio', async (_, res) => {
   try {
     const summary = await getPortfolioSummary()
     res.json(summary)
+  } catch (err: any) {
+    res.status(500).json({ error: err.message })
+  }
+})
+ // Get active markets/events from Bayse
+
+app.get('/markets', async (_, res) => {
+  try {
+    const events = await getActiveEvents()
+    res.json({ events, total: events.length })
   } catch (err: any) {
     res.status(500).json({ error: err.message })
   }

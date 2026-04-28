@@ -8,28 +8,29 @@ export interface AggregatedSignal {
   quant: QuantSignal
   sentiment: SentimentSignal
   mispricing: MispricingSignal
+  marketId?: string
+  eventId?: string
+  eventTitle?: string
   timestamp: number
 }
 
-export async function getAggregatedSignal(): Promise<AggregatedSignal> {
-  // Run all 3 signals in parallel
+export async function getAggregatedSignal(
+  eventId?: string,
+  marketId?: string,
+  eventTitle?: string
+): Promise<AggregatedSignal> {
   const [quant, sentiment, mispricing] = await Promise.all([
     Promise.resolve(getQuantSignal()),
     getSentimentSignal(),
-    getMispricingSignal(),
+    getMispricingSignal(eventId, marketId),
   ])
 
-  // Weighted combination
-  // Quant: 40% — most reliable signal
-  // Sentiment: 30% — Nigerian macro context
-  // Mispricing: 30% — crowd arbitrage opportunity
   const confidenceScore = Math.round(
     quant.score * 0.4 +
     sentiment.score * 0.3 +
     mispricing.score * 0.3
   )
 
-  // Final recommendation
   let recommendation: 'BUY_UP' | 'BUY_DOWN' | 'HOLD' = 'HOLD'
   if (confidenceScore >= 65) recommendation = 'BUY_UP'
   else if (confidenceScore <= 35) recommendation = 'BUY_DOWN'
@@ -40,6 +41,9 @@ export async function getAggregatedSignal(): Promise<AggregatedSignal> {
     quant,
     sentiment,
     mispricing,
+    marketId,
+    eventId,
+    eventTitle,
     timestamp: Date.now(),
   }
 }
