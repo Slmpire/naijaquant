@@ -6,6 +6,7 @@ import TradeLog from './components/TradeLog'
 import BTCChart from './components/BTCChart'
 import Portfolio from './components/Portfolio'
 import MarketSelector from './components/MarketSelector'
+import BotControls from './components/BotControls'
 
 const REFRESH_INTERVAL = 15000
 
@@ -23,6 +24,18 @@ export default function App() {
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
   const [selectedMarketId, setSelectedMarketId] = useState<string | null>(null)
   const [selectedTitle, setSelectedTitle] = useState<string>('All Markets')
+  const [botPaused, setBotPaused] = useState(false)
+  
+
+  const handlePause = async () => {
+    await api.pauseBot()
+    setBotPaused(true)
+  }
+
+  const handleResume = async () => {
+    await api.resumeBot()
+    setBotPaused(false)
+  }
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768)
@@ -43,23 +56,25 @@ export default function App() {
     }
   }, [selectedEventId, selectedMarketId, selectedTitle])
 
-  const fetchAll = useCallback(async () => {
-    try {
-      const [snap, tradeData, port, mkt] = await Promise.all([
-        api.getSnapshot(),
-        api.getTrades(),
-        api.getPortfolio(),
-        api.getMarkets(),
-      ])
-      setSnapshot(snap)
-      setTrades(tradeData.trades || [])
-      setPortfolio(port)
-      setMarkets(mkt.events || [])
-      setIsLive(true)
-    } catch {
-      setIsLive(false)
-    }
-  }, [])
+    const fetchAll = useCallback(async () => {
+  try {
+    const [snap, td, port, mkt, status] = await Promise.all([
+      api.getSnapshot(),
+      api.getTrades(),
+      api.getPortfolio(),
+      api.getMarkets(),
+      api.getStatus(),        // add this
+    ])
+    setSnapshot(snap)
+    setTrades(td.trades || [])
+    setPortfolio(port)
+    setMarkets(mkt.events || [])
+    setBotPaused(status.paused)   // add this
+    setIsLive(true)
+  } catch {
+    setIsLive(false)
+  }
+}, [])
 
   // Fetch everything on load
   useEffect(() => {
@@ -155,6 +170,15 @@ export default function App() {
           onTriggerTrade={handleTrade}
           isTrading={isTrading}
         />
+
+        {}
+         <BotControls
+    paused={botPaused}
+    isTrading={isTrading}
+    onPause={handlePause}
+    onResume={handleResume}
+    onTriggerTrade={handleTrade}
+  />
 
          {/* Market Selector */}
         <MarketSelector

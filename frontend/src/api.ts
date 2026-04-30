@@ -17,4 +17,7 @@ export const api = {
   triggerTrade: (eventId?: string, marketId?: string) => {
     return axios.post(`${BASE}/trade`, { eventId, marketId }).then(r => r.data)
   },
+  getStatus: () => fetch(`${BASE}/status`).then(r => r.json()),
+  pauseBot: () => fetch(`${BASE}/pause`, { method: 'POST' }).then(r => r.json()),
+  resumeBot: () => fetch(`${BASE}/resume`, { method: 'POST' }).then(r => r.json()),
 }

@@ -10,6 +10,14 @@ import {
 import { getAggregatedSignal, AggregatedSignal } from '../signals/aggregator'
 import { generateTradeExplanation } from '../services/explainer'
 
+
+// ── Bot State ─────────────────────────────────────────────
+export let botPaused = false
+
+export function setBotPaused(value: boolean) {
+  botPaused = value
+  console.log(`[BOT] ${value ? '⏸ Paused' : '▶ Resumed'}`)
+}
 // ── Trade Log ─────────────────────────────────────────────
 
 export interface TradeLog {
@@ -55,6 +63,26 @@ function secondsUntilClose(closingDate: string): number {
 // ── Main Trade Function ───────────────────────────────────
 
 export async function runTradeCycle(): Promise<TradeLog> {
+  if (botPaused) {
+    console.log('[TRADER] Bot is paused — skipping cycle')
+    const log: TradeLog = {
+      id: generateId(),
+      timestamp: Date.now(),
+      action: 'HOLD',
+      confidenceScore: 0,
+      quantScore: 0,
+      sentimentScore: 0,
+      mispricingScore: 0,
+      eventTitle: '',
+      outcomeLabel: '',
+      price: 0,
+      amount: 0,
+      orderId: null,
+      reason: 'Bot is paused by user.',
+      status: 'HELD',
+    }
+    return log
+  }
   const signal = await getAggregatedSignal()
   lastSignal = signal
   const logId = generateId()

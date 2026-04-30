@@ -4,9 +4,9 @@ import { config } from './config'
 import { initDataPipeline } from './scheduler'
 import { store } from './store'
 import { getAggregatedSignal } from './signals/aggregator'
-import { runTradeCycle, tradeLogs, getPortfolioSummary } from './trading/trader'
 import { generateTradeExplanation } from './services/explainer'
 import { getActiveEvents } from './trading/bayse'
+import { runTradeCycle, tradeLogs, getPortfolioSummary, botPaused, setBotPaused } from './trading/trader'
 
 const app = express()
 app.use(cors({
@@ -116,6 +116,26 @@ app.post('/explain/:tradeId', async (req, res) => {
   } catch (err: any) {
     res.status(500).json({ error: err.message })
   }
+})
+
+// Get bot status
+app.get('/status', (_, res) => {
+  res.json({
+    paused: botPaused,
+    status: botPaused ? 'PAUSED' : 'RUNNING',
+  })
+})
+
+// Toggle pause
+app.post('/pause', (_, res) => {
+  setBotPaused(true)
+  res.json({ paused: true, status: 'PAUSED' })
+})
+
+// Toggle play
+app.post('/resume', (_, res) => {
+  setBotPaused(false)
+  res.json({ paused: false, status: 'RUNNING' })
 })
 
 
