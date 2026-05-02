@@ -9,15 +9,25 @@ import {
 } from './bayse'
 import { getAggregatedSignal, AggregatedSignal } from '../signals/aggregator'
 import { generateTradeExplanation } from '../services/explainer'
+import { loadBotState, saveBotState } from '../services/botState'
 
+// ── Bot State — persisted to disk ─────────────────────────
 
-// ── Bot State ─────────────────────────────────────────────
-export let botPaused = false
+const state = loadBotState()
+export let botPaused = state.paused
+
+console.log(`[BOT] Starting in ${botPaused ? '⏸ PAUSED' : '▶ RUNNING'} state`)
 
 export function setBotPaused(value: boolean) {
   botPaused = value
-  console.log(`[BOT] ${value ? '⏸ Paused' : '▶ Resumed'}`)
+  saveBotState({
+    paused: value,
+    pausedAt: value ? Date.now() : null,
+    resumedAt: value ? null : Date.now(),
+  })
+  console.log(`[BOT] ${value ? '⏸ Paused — state saved to disk' : '▶ Resumed — state saved to disk'}`)
 }
+
 // ── Trade Log ─────────────────────────────────────────────
 
 export interface TradeLog {
@@ -63,6 +73,8 @@ function secondsUntilClose(closingDate: string): number {
 // ── Main Trade Function ───────────────────────────────────
 
 export async function runTradeCycle(): Promise<TradeLog> {
+
+  // ── PAUSE CHECK ─────────────────────────────────────────
   if (botPaused) {
     console.log('[TRADER] Bot is paused — skipping cycle')
     const log: TradeLog = {
@@ -78,11 +90,12 @@ export async function runTradeCycle(): Promise<TradeLog> {
       price: 0,
       amount: 0,
       orderId: null,
-      reason: 'Bot is paused by user.',
+      reason: 'Bot is paused by user. Resume the bot to allow trading.',
       status: 'HELD',
     }
     return log
   }
+
   const signal = await getAggregatedSignal()
   lastSignal = signal
   const logId = generateId()
@@ -262,6 +275,7 @@ export async function getPortfolioSummary() {
       executedTrades: tradeLogs.filter(t => t.status === 'EXECUTED').length,
       heldTrades: tradeLogs.filter(t => t.status === 'HELD').length,
       failedTrades: tradeLogs.filter(t => t.status === 'FAILED').length,
+      botPaused,
     }
   } catch (err: any) {
     return { error: err.message }
