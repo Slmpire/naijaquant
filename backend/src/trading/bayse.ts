@@ -90,6 +90,25 @@ export async function getActiveEvents(seriesSlug?: string): Promise<BayseEvent[]
   }))
 }
 
+
+export async function getEvent(eventId: string): Promise<BayseEvent> {
+  const e = await request('GET', `/v1/pm/events/${eventId}`)
+  const event = e.event ?? e
+  return {
+    id: event.id,
+    title: event.title,
+    closingDate: event.closingDate,
+    markets: (event.markets ?? []).map((m: any) => ({
+      id: m.id,
+      outcomes: [
+        { id: m.outcome1Id, label: m.outcome1Label, price: m.outcome1Price },
+        { id: m.outcome2Id, label: m.outcome2Label, price: m.outcome2Price },
+      ],
+    })),
+  }
+}
+
+
 // ── Orders ────────────────────────────────────────────────
 
 export interface PlacedOrder {

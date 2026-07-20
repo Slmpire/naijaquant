@@ -6,6 +6,7 @@ import {
   getPortfolio,
   mintShares,
   BayseEvent,
+  getEvent,
 } from './bayse'
 import { getAggregatedSignal, AggregatedSignal } from '../signals/aggregator'
 import { generateTradeExplanation } from '../services/explainer'
@@ -46,6 +47,11 @@ export interface TradeLog {
   orderId: string | null
   reason: string
   status: 'EXECUTED' | 'HELD' | 'FAILED'
+  eventId?: string
+  marketId?: string
+  outcomeId?: string
+  exitPrice?: number
+  exitTimestamp?: number
 }
 
 // Removed in-memory array in favor of persistent database logs.
@@ -53,6 +59,9 @@ export interface TradeLog {
 // ── Config ────────────────────────────────────────────────
 
 const TRADE_AMOUNT = 100
+const MAX_ORDER_AGE_SECS = 120
+const TAKE_PROFIT_PERCENT = 0.20
+const STOP_LOSS_PERCENT = 0.15
 const BUY_UP_THRESHOLD = 65
 const BUY_DOWN_THRESHOLD = 35
 const MIN_SECONDS_TO_CLOSE = 60
@@ -227,6 +236,9 @@ export async function runTradeCycle(): Promise<TradeLog> {
       orderId: order.id,
       reason: `Score ${signal.confidenceScore}/100 — generating explanation...`,
       status: 'EXECUTED',
+      eventId: event.id,
+      marketId: market.id,
+      outcomeId: outcome.id,
     }
 
     await saveTradeLog(log)
@@ -248,6 +260,9 @@ export async function runTradeCycle(): Promise<TradeLog> {
       price: outcome.price,
       reason: `Order failed: ${err.message}`,
       status: 'FAILED',
+      eventId: event.id,
+      marketId: market.id,
+      outcomeId: outcome.id,
     }
 
     await saveTradeLog(log)
@@ -285,5 +300,143 @@ export async function getPortfolioSummary() {
     }
   } catch (err: any) {
     return { error: err.message }
+  }
+}
+
+// ── Risk Management ───────────────────────────────────────
+
+export async function cleanupStaleOrders() {
+  if (botPaused) return
+  
+  try {
+    const openOrders = await getOpenOrders()
+    if (openOrders.length === 0) return
+
+    const dbTrades = await getTradeLogs(100)
+    
+    for (const openOrder of openOrders) {
+      const match = dbTrades.find(t => t.orderId === openOrder.id)
+      if (match) {
+        const ageSecs = (Date.now() - match.timestamp) / 1000
+        if (ageSecs > MAX_ORDER_AGE_SECS) {
+          console.log(`[RISK] Order ${openOrder.id} is stale (${ageSecs.toFixed(0)}s > ${MAX_ORDER_AGE_SECS}s). Cancelling...`)
+          try {
+            await cancelOrder(openOrder.id)
+            await updateTradeLog(match.id, {
+              status: 'FAILED',
+              reason: match.reason + ` (Canceled by Risk Manager: stale after ${ageSecs.toFixed(0)}s)`
+            })
+            console.log(`[RISK] ✓ Canceled stale order ${openOrder.id}`)
+          } catch (cancelErr: any) {
+            console.error(`[RISK] Failed to cancel order ${openOrder.id}:`, cancelErr.message)
+          }
+        }
+      }
+    }
+  } catch (err: any) {
+    console.error('[RISK] Error during stale order cleanup:', err.message)
+  }
+}
+
+export async function managePositionRisks() {
+  if (botPaused) return
+
+  try {
+    const positions = await getPortfolio()
+    const activePositions = positions.filter(p => p.available > 0)
+    if (activePositions.length === 0) return
+
+    // Fetch top 20 active events first to map prices
+    const activeEvents = await getActiveEvents()
+    const outcomePriceMap = new Map<string, { price: number; eventId: string; marketId: string; title: string }>()
+    
+    for (const event of activeEvents) {
+      for (const market of event.markets) {
+        for (const outcome of market.outcomes) {
+          outcomePriceMap.set(outcome.id, {
+            price: outcome.price,
+            eventId: event.id,
+            marketId: market.id,
+            title: event.title,
+          })
+        }
+      }
+    }
+
+    const dbTrades = await getTradeLogs(200)
+
+    for (const position of activePositions) {
+      // Find open database trade log for this outcome (status EXECUTED, exitTimestamp undefined/null)
+      const trade = dbTrades.find(t => 
+        t.outcomeId === position.outcomeId && 
+        t.status === 'EXECUTED' && 
+        !t.exitTimestamp
+      )
+
+      if (trade) {
+        let currentInfo = outcomePriceMap.get(position.outcomeId)
+        
+        // Fallback: fetch details directly if it fell off active list
+        if (!currentInfo && trade.eventId && trade.marketId) {
+          try {
+            const e = await getEvent(trade.eventId)
+            const m = e.markets.find((m: any) => m.id === trade.marketId)
+            const o = m?.outcomes.find((o: any) => o.id === position.outcomeId)
+            if (o) {
+              currentInfo = {
+                price: o.price,
+                eventId: e.id,
+                marketId: m!.id,
+                title: e.title,
+              }
+            }
+          } catch (fallbackErr: any) {
+            console.warn(`[RISK] Fallback fetch failed for event ${trade.eventId}:`, fallbackErr.message)
+          }
+        }
+
+        if (currentInfo) {
+          const currentPrice = currentInfo.price
+          const entryPrice = trade.price
+          
+          const profitPct = (currentPrice - entryPrice) / entryPrice
+          const lossPct = (entryPrice - currentPrice) / entryPrice
+
+          const isTakeProfit = profitPct >= TAKE_PROFIT_PERCENT
+          const isStopLoss = lossPct >= STOP_LOSS_PERCENT
+
+          if (isTakeProfit || isStopLoss) {
+            const triggerType = isTakeProfit ? 'Take Profit' : 'Stop Loss'
+            const pctText = isTakeProfit ? `+${(profitPct * 100).toFixed(1)}%` : `-${(lossPct * 100).toFixed(1)}%`
+            console.log(`[RISK] Triggered ${triggerType} (${pctText}) on ${position.outcomeId}. Entry: ₦${entryPrice}, Current: ₦${currentPrice}. Liquidating ${position.available} shares...`)
+
+            try {
+              // Place SELL orders
+              const sellOrder = await placeOrder(
+                currentInfo.eventId,
+                currentInfo.marketId,
+                position.outcomeId,
+                'SELL',
+                currentPrice,
+                position.available
+              )
+
+              // Record trade exits in db
+              await updateTradeLog(trade.id, {
+                exitPrice: currentPrice,
+                exitTimestamp: Date.now(),
+                reason: trade.reason + ` \n[RISK EXIT] Liquidated position via ${triggerType} at ₦${currentPrice} (${pctText})`
+              })
+
+              console.log(`[RISK] ✓ Exited position. Order ID: ${sellOrder.id}`)
+            } catch (exitErr: any) {
+              console.error(`[RISK] Failed to execute liquidation:`, exitErr.message)
+            }
+          }
+        }
+      }
+    }
+  } catch (err: any) {
+    console.error('[RISK] Error in managePositionRisks:', err.message)
   }
 }

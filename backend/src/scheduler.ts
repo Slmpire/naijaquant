@@ -3,7 +3,7 @@ import { getBTCPriceHistory, getBTCCurrentPrice } from './services/coingecko'
 import { getNGNRate } from './services/exchangerate'
 import { getNigerianFinanceNews } from './services/news'
 import { store } from './store'
-import { runTradeCycle } from './trading/trader'
+import { runTradeCycle, cleanupStaleOrders, managePositionRisks } from './trading/trader'
 
 async function refreshBTC() {
   try {
@@ -65,9 +65,18 @@ export async function initDataPipeline() {
   // News — every 30 minutes
   cron.schedule('*/30 * * * *', refreshNews)
   cron.schedule('*/15 * * * *', async () => {
-  console.log('\n[SCHEDULER] Running auto trade cycle...')
-  await runTradeCycle()
-})
+    console.log('\n[SCHEDULER] Running auto trade cycle...')
+    await runTradeCycle()
+  })
+
+  // Risk Management: stale order checks and stop-loss/take-profit checks — every 1 minute
+  cron.schedule('* * * * *', async () => {
+    console.log('[SCHEDULER] Running risk management checks...')
+    await Promise.all([
+      cleanupStaleOrders(),
+      managePositionRisks()
+    ]).catch(err => console.error('[SCHEDULER] Risk checks error:', err.message))
+  })
 
 // Ping self every 10 minutes to prevent cold start
 const BACKEND_URL = process.env.BACKEND_URL || ''
@@ -85,5 +94,6 @@ if (BACKEND_URL) {
   console.log('  • BTC history  → every 1 hour')
   console.log('  • NGN/USD rate → every 10 minutes')
   console.log('  • News         → every 30 minutes\n')
+  console.log('  • Risk checks  → every 1 minute')
   console.log('  • Trade cycle  → every 15 minutes')
 }
