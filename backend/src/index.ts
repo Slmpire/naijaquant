@@ -6,7 +6,8 @@ import { store } from './store'
 import { getAggregatedSignal } from './signals/aggregator'
 import { generateTradeExplanation } from './services/explainer'
 import { getActiveEvents } from './trading/bayse'
-import { runTradeCycle, tradeLogs, getPortfolioSummary, botPaused, setBotPaused } from './trading/trader'
+import { runTradeCycle, getPortfolioSummary, botPaused, setBotPaused } from './trading/trader'
+import { getTradeLogs, updateTradeLog } from './services/db'
 
 const app = express()
 app.use(cors({
@@ -75,11 +76,16 @@ app.post('/trade', async (_, res) => {
 })
 
 // Get all trade logs
-app.get('/trades', (_, res) => {
-  res.json({
-    total: tradeLogs.length,
-    trades: tradeLogs.slice(0, 20), // last 20 trades
-  })
+app.get('/trades', async (_, res) => {
+  try {
+    const list = await getTradeLogs(50)
+    res.json({
+      total: list.length,
+      trades: list,
+    })
+  } catch (err: any) {
+    res.status(500).json({ error: err.message })
+  }
 })
 
 // Get portfolio summary
@@ -105,13 +111,14 @@ app.get('/markets', async (_, res) => {
 // Regenerate explanation for a specific trade
 app.post('/explain/:tradeId', async (req, res) => {
   try {
-    const trade = tradeLogs.find(t => t.id === req.params.tradeId)
+    const list = await getTradeLogs(100)
+    const trade = list.find(t => t.id === req.params.tradeId)
     if (!trade) {
       return res.status(404).json({ error: 'Trade not found' })
     }
     const signal = await getAggregatedSignal()
     const explanation = await generateTradeExplanation(signal, trade)
-    trade.reason = explanation
+    await updateTradeLog(trade.id, { reason: explanation })
     res.json({ explanation })
   } catch (err: any) {
     res.status(500).json({ error: err.message })

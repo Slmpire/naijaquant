@@ -10,6 +10,7 @@ import {
 import { getAggregatedSignal, AggregatedSignal } from '../signals/aggregator'
 import { generateTradeExplanation } from '../services/explainer'
 import { loadBotState, saveBotState } from '../services/botState'
+import { saveTradeLog, updateTradeLog, getTradeLogs } from '../services/db'
 
 // ── Bot State — persisted to disk ─────────────────────────
 
@@ -47,7 +48,7 @@ export interface TradeLog {
   status: 'EXECUTED' | 'HELD' | 'FAILED'
 }
 
-export const tradeLogs: TradeLog[] = []
+// Removed in-memory array in favor of persistent database logs.
 
 // ── Config ────────────────────────────────────────────────
 
@@ -127,9 +128,10 @@ export async function runTradeCycle(): Promise<TradeLog> {
       reason: `Confidence score ${signal.confidenceScore} is between thresholds. Holding.`,
       status: 'HELD',
     }
-    tradeLogs.unshift(log)
-    generateTradeExplanation(signal, log).then(explanation => {
+    await saveTradeLog(log)
+    generateTradeExplanation(signal, log).then(async explanation => {
       log.reason = explanation
+      await updateTradeLog(log.id, { reason: explanation })
       console.log(`[EXPLAINER] ${explanation}`)
     })
     console.log(`[TRADER] HOLD — score not strong enough`)
@@ -146,7 +148,7 @@ export async function runTradeCycle(): Promise<TradeLog> {
       reason: `Could not fetch Bayse markets: ${err.message}`,
       status: 'FAILED',
     }
-    tradeLogs.unshift(log)
+    await saveTradeLog(log)
     console.error(`[TRADER] Failed to fetch markets — ${err.message}`)
     return log
   }
@@ -157,7 +159,7 @@ export async function runTradeCycle(): Promise<TradeLog> {
       reason: 'No active Bayse markets available right now',
       status: 'FAILED',
     }
-    tradeLogs.unshift(log)
+    await saveTradeLog(log)
     console.log(`[TRADER] No active markets`)
     return log
   }
@@ -173,7 +175,7 @@ export async function runTradeCycle(): Promise<TradeLog> {
       reason: 'All markets are closing too soon — skipping',
       status: 'HELD',
     }
-    tradeLogs.unshift(log)
+    await saveTradeLog(log)
     console.log(`[TRADER] Markets closing too soon`)
     return log
   }
@@ -185,7 +187,7 @@ export async function runTradeCycle(): Promise<TradeLog> {
       reason: 'No market found in event',
       status: 'FAILED',
     }
-    tradeLogs.unshift(log)
+    await saveTradeLog(log)
     return log
   }
 
@@ -227,11 +229,12 @@ export async function runTradeCycle(): Promise<TradeLog> {
       status: 'EXECUTED',
     }
 
-    tradeLogs.unshift(log)
+    await saveTradeLog(log)
     console.log(`[TRADER] ✓ Order placed — ID: ${order.id}`)
 
-    generateTradeExplanation(signal, log).then(explanation => {
+    generateTradeExplanation(signal, log).then(async explanation => {
       log.reason = explanation
+      await updateTradeLog(log.id, { reason: explanation })
       console.log(`[EXPLAINER] ${explanation}`)
     })
 
@@ -247,12 +250,14 @@ export async function runTradeCycle(): Promise<TradeLog> {
       status: 'FAILED',
     }
 
-    tradeLogs.unshift(log)
+    await saveTradeLog(log)
     console.error(`[TRADER] Order failed — ${err.message}`)
 
     if (lastSignal) {
-      generateTradeExplanation(lastSignal, log).then(explanation => {
-        log.reason = explanation + ` (Order error: ${err.message})`
+      generateTradeExplanation(lastSignal, log).then(async explanation => {
+        const fullReason = explanation + ` (Order error: ${err.message})`
+        log.reason = fullReason
+        await updateTradeLog(log.id, { reason: fullReason })
       })
     }
 
@@ -264,17 +269,18 @@ export async function runTradeCycle(): Promise<TradeLog> {
 
 export async function getPortfolioSummary() {
   try {
-    const [positions, openOrders] = await Promise.all([
+    const [positions, openOrders, dbTrades] = await Promise.all([
       getPortfolio(),
       getOpenOrders(),
+      getTradeLogs(500),
     ])
     return {
       positions,
       openOrderCount: openOrders.length,
-      tradeCount: tradeLogs.length,
-      executedTrades: tradeLogs.filter(t => t.status === 'EXECUTED').length,
-      heldTrades: tradeLogs.filter(t => t.status === 'HELD').length,
-      failedTrades: tradeLogs.filter(t => t.status === 'FAILED').length,
+      tradeCount: dbTrades.length,
+      executedTrades: dbTrades.filter(t => t.status === 'EXECUTED').length,
+      heldTrades: dbTrades.filter(t => t.status === 'HELD').length,
+      failedTrades: dbTrades.filter(t => t.status === 'FAILED').length,
       botPaused,
     }
   } catch (err: any) {

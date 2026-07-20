@@ -1,0 +1,18 @@
+[
+  {
+    "id": "trade_1784539972560_0380b",
+    "timestamp": 1784539972560,
+    "action": "HOLD",
+    "confidenceScore": 42,
+    "quantScore": 68,
+    "sentimentScore": 50,
+    "mispricingScore": 0,
+    "eventTitle": "",
+    "outcomeLabel": "",
+    "price": 0,
+    "amount": 100,
+    "orderId": null,
+    "reason": "NaijaQuant held this cycle with a confidence score of 42/100 — not strong enough to trigger a trade. The quant signals showed bullish momentum while the naira was stable, creating mixed signals that didn't meet the trading threshold.",
+    "status": "HELD"
+  }
+]
